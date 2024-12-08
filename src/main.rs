@@ -1,10 +1,14 @@
+mod content_type;
+mod simd_json;
+
 use axum::{
   http::{header, StatusCode, Uri},
   response::{Html, IntoResponse, Response},
-  routing::Router,
+  routing::{Router, get},
+  // Json,
 };
+use simd_json::Json;
 use rust_embed::RustEmbed;
-use mime_guess;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use dotenvy::dotenv;
 use std::env;
@@ -16,6 +20,13 @@ use tower_http::{
     set_header::SetResponseHeaderLayer
 };
 use axum::http::{HeaderName, HeaderValue};
+use content_type::get_content_type;
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct Message {
+    pub message: &'static str,
+}
 
 static INDEX_HTML: &str = "index.html";
 
@@ -50,6 +61,7 @@ async fn main() -> Result<()> {
 
   let app = Router::new()
     .nest_service("/assets", ServeDir::new("assets"))
+    .route("/json", get(json))
     .fallback(static_handler)
     .layer(CompressionLayer::new().br(true))
     .layer(SetResponseHeaderLayer::overriding(
@@ -75,17 +87,17 @@ async fn static_handler(uri: Uri) -> impl IntoResponse {
 
   match Assets::get(path) {
       Some(content) => {
-          let mime = mime_guess::from_path(path).first_or_octet_stream();
+
           (
               [
-                  (header::CONTENT_TYPE, mime.as_ref()),
+                  (header::CONTENT_TYPE, get_content_type(path)),
                   // (header::CACHE_CONTROL, "public, max-age=86400, immutable"),
               ],
               content.data,
           )
               .into_response()
       }
-      None => {
+      _ => {
           if path.contains('.') {
               return not_found().await;
           }
@@ -147,7 +159,7 @@ async fn list_todos(pool: &SqlitePool) -> Result<()> {
 
 async fn create_todos_table(pool: &SqlitePool) -> Result<()> {
   let mut conn = pool.acquire().await?;
-  
+
   sqlx::query!(
       r#"
       CREATE TABLE IF NOT EXISTS todos
@@ -164,4 +176,12 @@ async fn create_todos_table(pool: &SqlitePool) -> Result<()> {
   println!("Tabel 'todos' berhasil dibuat atau sudah ada.");
 
   Ok(())
+}
+
+async fn json() -> impl IntoResponse {
+    let message = Message {
+        message: "Hello, World!",
+    };
+
+    (StatusCode::OK, Json(message))
 }
