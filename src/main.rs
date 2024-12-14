@@ -31,7 +31,7 @@ pub struct Message {
 static INDEX_HTML: &str = "index.html";
 
 #[derive(RustEmbed)]
-#[folder = "src/svelte/build/"]
+#[folder = "frontend/build/"]
 struct Assets;
 
 #[tokio::main]
